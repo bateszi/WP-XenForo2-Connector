@@ -6,3 +6,5 @@ Author: Paul Bates
 Version: 0.1
 Author URI: https://github.com/bateszi
  */
+
+require_once __DIR__ . '/XenForo2Connector.php';
