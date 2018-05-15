@@ -11,6 +11,7 @@ if ( !class_exists('XenForo2Connector') ) {
 			register_setting('general', 'xf2wp_forum_base_url');
 			register_setting('general', 'xf2wp_api_username');
 			register_setting('general', 'xf2wp_api_password');
+			register_setting('general', 'xf2wp_forum_id');
 
 			add_settings_section(
 				'xf2wp_settings_section',
@@ -44,6 +45,15 @@ if ( !class_exists('XenForo2Connector') ) {
 				'general',
 				'xf2wp_settings_section',
 				['label_for' => 'xf2wp_api_password_field']
+			);
+
+			add_settings_field(
+				'xf2wp_forum_id_field',
+				'Target forum',
+				'XenForo2Connector::forumIdFieldCb',
+				'general',
+				'xf2wp_settings_section',
+				['label_for' => 'xf2wp_forum_id_field']
 			);
 		}
 
@@ -88,6 +98,65 @@ if ( !class_exists('XenForo2Connector') ) {
 				name="xf2wp_api_password"
 				value="<?php echo isset( $apiPassword ) ? esc_attr( $apiPassword ) : ''; ?>">
 			<?php
+		}
+
+		public static function forumIdFieldCb() {
+			$selectedForumId = get_option('xf2wp_forum_id');
+			$apiResponse = XenForo2Connector::apiRequest('api/forums', 'get');
+
+			if (empty($apiResponse)) {
+			    ?>
+                <p class="description">No forums found.</p>
+                <?php
+            } else {
+			    ?>
+                <select name="xf2wp_forum_id" id="xf2wp_forum_id_field">
+					<?php
+					foreach ( $apiResponse["forums"] as $forumId => $forum ) {
+						?>
+                        <option
+							<?php echo ( $selectedForumId == $forumId ) ? 'selected="selected"' : '' ?>
+                                value="<?php echo $forumId ?>">
+							<?php echo $forum ?>
+                        </option>
+						<?php
+					}
+					?>
+                </select>
+                <p class="description">The forum where WordPress posts will be sent</p>
+                <?php
+            }
+		}
+
+		public static function apiRequest( string $canonicalUri, string $method ) {
+			$forumBaseUrl = get_option('xf2wp_forum_base_url');
+
+			if (empty($forumBaseUrl)) {
+			    return '';
+            }
+
+			$absUrl = sprintf('%s/index.php?%s', $forumBaseUrl, $canonicalUri);
+
+		    $authenticated = [
+                'api/forums' => false,
+                'api/threads/1,2' => false,
+                'api/thread' => true
+            ];
+
+		    $httpOpts = [];
+			$body = '';
+
+		    switch ($method) {
+                case 'get':
+                    $response = wp_remote_get( $absUrl, $httpOpts );
+
+                    if ($response["response"]["code"] >= 200 && $response["response"]["code"] <= 299) {
+	                    $body = wp_remote_retrieve_body( $response );
+                    }
+                    break;
+            }
+
+            return json_decode( $body, true );
 		}
 
 	}
