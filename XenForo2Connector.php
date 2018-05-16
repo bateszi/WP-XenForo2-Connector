@@ -5,6 +5,39 @@ if ( !class_exists('XenForo2Connector') ) {
 
 		public static function init() {
 			add_action('admin_init', 'XenForo2Connector::settingsInit');
+
+            add_action('show_user_profile', 'XenForo2Connector::userProfileForm');
+            add_action('edit_user_profile', 'XenForo2Connector::userProfileForm');
+            add_action('personal_options_update', 'XenForo2Connector::updateUserMetadata');
+            add_action('edit_user_profile_update', 'XenForo2Connector::updateUserMetadata');
+        }
+
+        /**
+         * @param WP_User $user
+         */
+        public static function userProfileForm( $user ) {
+            ?>
+            <h2>XenForo 2 Connector</h2>
+            <table class="form-table">
+                <tbody>
+                    <tr class="user-email-wrap">
+                        <th><label for="xf2wp_forum_user_id">(Forum) User ID</th>
+                        <td>
+                            <input type="number" value="<?php echo esc_attr( get_the_author_meta( 'xf2wp_forum_user_id', $user->ID ) ); ?>" name="xf2wp_forum_user_id" id="xf2wp_forum_user_id" class="regular-text ltr">
+                            <p class="description">Numeric ID of the user on the XenForo forums</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <?php
+		}
+
+        public static function updateUserMetadata( $userId ) {
+            if ( !current_user_can( 'edit_user', $userId ) ) {
+                return false;
+            }
+
+            update_user_meta( $userId, 'xf2wp_forum_user_id', $_POST['xf2wp_forum_user_id'] );
 		}
 
 		public static function settingsInit() {
@@ -100,7 +133,7 @@ if ( !class_exists('XenForo2Connector') ) {
 			<?php
 		}
 
-		public static function forumIdFieldCb() {
+        public static function forumIdFieldCb() {
             $selectedForumId = get_option('xf2wp_forum_id');
             $apiResponse = XenForo2Connector::apiRequest('api/forums', 'get');
 
@@ -126,9 +159,9 @@ if ( !class_exists('XenForo2Connector') ) {
                 <p class="description">The forum where WordPress posts will be sent</p>
                 <?php
             }
-		}
+        }
 
-		public static function apiRequest( string $canonicalUri, string $method ) {
+        public static function apiRequest( string $canonicalUri, string $method ) {
             $forumBaseUrl = get_option('xf2wp_forum_base_url');
 
             if (empty($forumBaseUrl)) {
@@ -157,7 +190,7 @@ if ( !class_exists('XenForo2Connector') ) {
             }
 
             return json_decode( $body, true );
-		}
+        }
 
 	}
 
