@@ -3,6 +3,18 @@ if ( !class_exists('XenForo2Connector') ) {
 
 	class XenForo2Connector {
 
+		const XF_2_WP_THREAD_ID = 'xf2wp_thread_id';
+
+		const XF_2_WP_FORUM_USER_ID = 'xf2wp_forum_user_id';
+
+		const XF_2_WP_FORUM_ID = 'xf2wp_forum_id';
+
+		const XF_2_WP_FORUM_BASE_URL = 'xf2wp_forum_base_url';
+
+		const XF_2_WP_API_USERNAME = 'xf2wp_api_username';
+
+		const XF_2_WP_API_PASSWORD = 'xf2wp_api_password';
+
 		public static function init() {
 			add_action('admin_init', 'XenForo2Connector::settingsInit');
 
@@ -10,6 +22,46 @@ if ( !class_exists('XenForo2Connector') ) {
             add_action('edit_user_profile', 'XenForo2Connector::userProfileForm');
             add_action('personal_options_update', 'XenForo2Connector::updateUserMetadata');
             add_action('edit_user_profile_update', 'XenForo2Connector::updateUserMetadata');
+            add_action('transition_post_status', 'XenForo2Connector::publishPost', 10, 3);
+        }
+
+		public static function publishPost(string $new_status, string $old_status, WP_Post $publishedPost) {
+
+            if ($new_status === 'publish') {
+
+                $authorId = (int)$publishedPost->post_author;
+	            $forumUserId = get_the_author_meta( self::XF_2_WP_FORUM_USER_ID, $authorId );
+	            $forumId = get_option( self::XF_2_WP_FORUM_ID );
+
+	            if (!empty($forumUserId) && !empty($forumId)) {
+
+	                $title = $publishedPost->post_title;
+		            $excerpt = $publishedPost->post_excerpt;
+
+		            if ($excerpt === '') {
+		                $excerpt = wp_trim_words( $publishedPost->post_content );
+                    }
+
+		            $requestBody = json_encode([
+                        'userId' => (int)$forumUserId,
+                        'threadTitle' => $title,
+                        'threadBodyHtml' => $excerpt,
+                        'forumId' => (int)$forumId,
+                    ]);
+
+		            $response = XenForo2Connector::apiRequest( 'api/thread', 'post', $requestBody );
+
+		            if (!empty($response)) {
+
+		                $threadId = $response['thread'];
+		                add_post_meta( $publishedPost->ID, self::XF_2_WP_THREAD_ID, $threadId );
+
+                    }
+
+                }
+
+            }
+
         }
 
         /**
@@ -23,7 +75,7 @@ if ( !class_exists('XenForo2Connector') ) {
                     <tr class="user-email-wrap">
                         <th><label for="xf2wp_forum_user_id">(Forum) User ID</th>
                         <td>
-                            <input type="number" value="<?php echo esc_attr( get_the_author_meta( 'xf2wp_forum_user_id', $user->ID ) ); ?>" name="xf2wp_forum_user_id" id="xf2wp_forum_user_id" class="regular-text ltr">
+                            <input type="number" value="<?php echo esc_attr( get_the_author_meta( self::XF_2_WP_FORUM_USER_ID, $user->ID ) ); ?>" name="xf2wp_forum_user_id" id="xf2wp_forum_user_id" class="regular-text ltr">
                             <p class="description">Numeric ID of the user on the XenForo forums</p>
                         </td>
                     </tr>
@@ -37,14 +89,14 @@ if ( !class_exists('XenForo2Connector') ) {
                 return false;
             }
 
-            update_user_meta( $userId, 'xf2wp_forum_user_id', $_POST['xf2wp_forum_user_id'] );
+            update_user_meta( $userId, self::XF_2_WP_FORUM_USER_ID, $_POST[ self::XF_2_WP_FORUM_USER_ID ] );
 		}
 
 		public static function settingsInit() {
-			register_setting('general', 'xf2wp_forum_base_url');
-			register_setting('general', 'xf2wp_api_username');
-			register_setting('general', 'xf2wp_api_password');
-			register_setting('general', 'xf2wp_forum_id');
+			register_setting('general', self::XF_2_WP_FORUM_BASE_URL );
+			register_setting('general', self::XF_2_WP_API_USERNAME );
+			register_setting('general', self::XF_2_WP_API_PASSWORD );
+			register_setting('general', self::XF_2_WP_FORUM_ID );
 
 			add_settings_section(
 				'xf2wp_settings_section',
@@ -95,7 +147,7 @@ if ( !class_exists('XenForo2Connector') ) {
 		}
 
 		public static function forumBaseUrlFieldCb() {
-			$forumBaseUrl = get_option('xf2wp_forum_base_url');
+			$forumBaseUrl = get_option( self::XF_2_WP_FORUM_BASE_URL );
 			?>
 			<input
 				id="xf2wp_forum_base_url_field"
@@ -109,7 +161,7 @@ if ( !class_exists('XenForo2Connector') ) {
 		}
 
 		public static function usernameFieldCb() {
-			$apiUsername = get_option('xf2wp_api_username');
+			$apiUsername = get_option( self::XF_2_WP_API_USERNAME );
 			?>
 			<input
 				id="xf2wp_api_username_field"
@@ -122,7 +174,7 @@ if ( !class_exists('XenForo2Connector') ) {
 		}
 
 		public static function passwordFieldCb() {
-			$apiPassword = get_option('xf2wp_api_password');
+			$apiPassword = get_option( self::XF_2_WP_API_PASSWORD );
 			?>
 			<input
 				id="xf2wp_api_password_field"
@@ -134,7 +186,7 @@ if ( !class_exists('XenForo2Connector') ) {
 		}
 
         public static function forumIdFieldCb() {
-            $selectedForumId = get_option('xf2wp_forum_id');
+            $selectedForumId = get_option( self::XF_2_WP_FORUM_ID );
             $apiResponse = XenForo2Connector::apiRequest('api/forums', 'get');
 
             if (empty($apiResponse)) {
@@ -161,32 +213,41 @@ if ( !class_exists('XenForo2Connector') ) {
             }
         }
 
-        public static function apiRequest( string $canonicalUri, string $method ) {
-            $forumBaseUrl = get_option('xf2wp_forum_base_url');
+        public static function apiRequest( string $canonicalUri, string $method, string $payload = '' ) {
+            $forumBaseUrl = get_option( self::XF_2_WP_FORUM_BASE_URL );
+            $username = get_option( self::XF_2_WP_API_USERNAME );
+            $password = get_option( self::XF_2_WP_API_PASSWORD );
 
-            if (empty($forumBaseUrl)) {
+            if ( empty($forumBaseUrl) || empty($username) || empty($password) ) {
                 return '';
             }
 
             $absUrl = sprintf('%s/index.php?%s', $forumBaseUrl, $canonicalUri);
 
-            $authenticated = [
-                'api/forums' => false,
-                'api/threads/1,2' => false,
-                'api/thread' => true
+            $httpOpts = [
+                'headers' => sprintf('Authorization: Basic %s', base64_encode( $username . ":" . $password ))
             ];
 
-            $httpOpts = [];
             $body = '';
+
+            $parseResponse = function ( $response ) use ( $body ): string {
+	            if ($response["response"]["code"] >= 200 && $response["response"]["code"] <= 299) {
+		            $body = wp_remote_retrieve_body( $response );
+	            }
+
+	            return $body;
+            };
 
             switch ($method) {
                 case 'get':
                     $response = wp_remote_get( $absUrl, $httpOpts );
-
-                    if ($response["response"]["code"] >= 200 && $response["response"]["code"] <= 299) {
-                        $body = wp_remote_retrieve_body( $response );
-                    }
+                    $body = $parseResponse( $response );
                     break;
+                case 'post':
+                    $httpOpts['body'] = $payload;
+	                $response = wp_remote_post( $absUrl, $httpOpts );
+	                $body = $parseResponse( $response );
+	                break;
             }
 
             return json_decode( $body, true );
