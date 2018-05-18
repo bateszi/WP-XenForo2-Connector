@@ -3,6 +3,8 @@ if ( !class_exists('XenForo2Connector') ) {
 
 	class XenForo2Connector {
 
+	    const VERSION = '0.1';
+
 		const XF_2_WP_THREAD_ID = 'xf2wp_thread_id';
 
 		const XF_2_WP_FORUM_USER_ID = 'xf2wp_forum_user_id';
@@ -22,12 +24,35 @@ if ( !class_exists('XenForo2Connector') ) {
             add_action('edit_user_profile', 'XenForo2Connector::userProfileForm');
             add_action('personal_options_update', 'XenForo2Connector::updateUserMetadata');
             add_action('edit_user_profile_update', 'XenForo2Connector::updateUserMetadata');
-            add_action('transition_post_status', 'XenForo2Connector::publishPost', 10, 3);
+            add_action('transition_post_status', 'XenForo2Connector::postStatusUpdated', 10, 3);
+			add_action('wp_enqueue_scripts', 'XenForo2Connector::registerScripts');
+		}
+
+		public static function registerScripts() {
+			$urlToJs = plugins_url( 'xenforo2_connect/js/xenforo2_connect.js' );
+            wp_enqueue_script('xf2wp_js', $urlToJs, [], self::VERSION, true);
+		}
+
+		public static function getPostExcerpt( WP_Post $publishedPost ): string {
+			$excerpt = $publishedPost->post_excerpt;
+
+			if ($excerpt === '') {
+				$excerpt = wp_trim_words( $publishedPost->post_content );
+			}
+
+			$link = sprintf('<a href="%s" target="_blank">Continue reading...</a>', get_permalink($publishedPost));
+			$excerpt .= "\n\n" . $link;
+
+			return $excerpt;
         }
 
-		public static function publishPost(string $new_status, string $old_status, WP_Post $publishedPost) {
+		public static function postStatusUpdated(string $new_status, string $old_status, WP_Post $publishedPost) {
 
-            if ($new_status === 'publish') {
+		    if ($publishedPost->post_type !== 'post') {
+		        return;
+            }
+
+            if ($new_status === 'publish' && $old_status !== 'publish') {
 
                 $authorId = (int)$publishedPost->post_author;
 	            $forumUserId = get_the_author_meta( self::XF_2_WP_FORUM_USER_ID, $authorId );
@@ -35,28 +60,66 @@ if ( !class_exists('XenForo2Connector') ) {
 
 	            if (!empty($forumUserId) && !empty($forumId)) {
 
-	                $title = $publishedPost->post_title;
-		            $excerpt = $publishedPost->post_excerpt;
-
-		            if ($excerpt === '') {
-		                $excerpt = wp_trim_words( $publishedPost->post_content );
-                    }
-
 		            $requestBody = json_encode([
                         'userId' => (int)$forumUserId,
-                        'threadTitle' => $title,
-                        'threadBodyHtml' => $excerpt,
+                        'threadTitle' => $publishedPost->post_title,
+                        'threadBodyHtml' => self::getPostExcerpt( $publishedPost ),
                         'forumId' => (int)$forumId,
                     ]);
 
 		            $response = XenForo2Connector::apiRequest( 'api/thread', 'post', $requestBody );
 
-		            if (!empty($response)) {
+		            if ( !empty($response) ) {
 
 		                $threadId = $response['thread'];
-		                add_post_meta( $publishedPost->ID, self::XF_2_WP_THREAD_ID, $threadId );
+		                add_post_meta( $publishedPost->ID, self::XF_2_WP_THREAD_ID, $threadId, true );
 
                     }
+
+                }
+
+            } elseif ($old_status === 'publish' && $new_status !== 'publish' ) {
+
+                $threadId = get_post_meta( $publishedPost->ID, self::XF_2_WP_THREAD_ID, true );
+
+                if ( !empty($threadId) )
+                {
+	                $requestBody = json_encode([
+		                'threadId' => (int)$threadId
+	                ]);
+
+	                $response = XenForo2Connector::apiRequest(
+                        'api/thread',
+                        'delete',
+                        $requestBody
+                    );
+
+	                if (isset($response['deleted']) && $response['deleted'])
+                    {
+                        delete_post_meta( $publishedPost->ID, self::XF_2_WP_THREAD_ID, $threadId );
+                    }
+                }
+
+            } elseif ($new_status === 'publish' && $old_status === 'publish') {
+
+	            $authorId = (int)$publishedPost->post_author;
+	            $forumUserId = get_the_author_meta( self::XF_2_WP_FORUM_USER_ID, $authorId );
+	            $threadId = get_post_meta( $publishedPost->ID, self::XF_2_WP_THREAD_ID, true );
+
+	            if ( !empty($forumUserId) && !empty($threadId) ) {
+
+		            $requestBody = json_encode([
+			            'userId' => (int)$forumUserId,
+			            'threadId' => (int)$threadId,
+			            'threadTitle' => $publishedPost->post_title,
+			            'threadBodyHtml' => self::getPostExcerpt( $publishedPost ),
+		            ]);
+
+		            XenForo2Connector::apiRequest(
+			            'api/thread',
+			            'put',
+			            $requestBody
+		            );
 
                 }
 
@@ -64,10 +127,7 @@ if ( !class_exists('XenForo2Connector') ) {
 
         }
 
-        /**
-         * @param WP_User $user
-         */
-        public static function userProfileForm( $user ) {
+        public static function userProfileForm( WP_User $user ) {
             ?>
             <h2>XenForo 2 Connector</h2>
             <table class="form-table">
@@ -248,6 +308,17 @@ if ( !class_exists('XenForo2Connector') ) {
 	                $response = wp_remote_post( $absUrl, $httpOpts );
 	                $body = $parseResponse( $response );
 	                break;
+	            case 'put':
+		            $httpOpts['body'] = $payload;
+		            $httpOpts['method'] = 'PUT';
+		            $response = wp_remote_request( $absUrl, $httpOpts );
+		            $body = $parseResponse( $response );
+		            break;
+                case 'delete':
+	                $httpOpts['body'] = $payload;
+	                $httpOpts['method'] = 'DELETE';
+	                $response = wp_remote_request( $absUrl, $httpOpts );
+	                $body = $parseResponse( $response );
             }
 
             return json_decode( $body, true );
