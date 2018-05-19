@@ -8,3 +8,4 @@ Author URI: https://github.com/bateszi
  */
 
 require_once __DIR__ . '/XenForo2Connector.php';
+require_once __DIR__ . '/XenForo2Viewer.php';

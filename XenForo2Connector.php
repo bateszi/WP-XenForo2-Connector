@@ -17,6 +17,11 @@ if ( !class_exists('XenForo2Connector') ) {
 
 		const XF_2_WP_API_PASSWORD = 'xf2wp_api_password';
 
+		/**
+		 * @var XenForo2Viewer
+		 */
+		private static $instance;
+
 		public static function init() {
 			add_action('admin_init', 'XenForo2Connector::settingsInit');
 
@@ -25,7 +30,28 @@ if ( !class_exists('XenForo2Connector') ) {
             add_action('personal_options_update', 'XenForo2Connector::updateUserMetadata');
             add_action('edit_user_profile_update', 'XenForo2Connector::updateUserMetadata');
             add_action('transition_post_status', 'XenForo2Connector::postStatusUpdated', 10, 3);
-			add_action('wp_enqueue_scripts', 'XenForo2Connector::registerScripts');
+            add_action('the_posts', 'XenForo2Connector::queryPosts');
+//			add_action('wp_enqueue_scripts', 'XenForo2Connector::registerScripts');
+		}
+
+		public static function getViewer() {
+            if ( !isset( self::$instance ) ) {
+                self::$instance = new XenForo2Viewer();
+            }
+
+            return self::$instance;
+		}
+
+		public static function queryPosts( array $posts ) {
+		    if ( self::isConfigured() && !is_admin() ) {
+			    self::getViewer()->getThreadsInPage( $posts );
+            }
+
+            return $posts;
+		}
+
+		public static function isConfigured(): bool {
+            return !empty( get_option( self::XF_2_WP_FORUM_BASE_URL ) );
 		}
 
 		public static function registerScripts() {
