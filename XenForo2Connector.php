@@ -30,7 +30,7 @@ if ( !class_exists('XenForo2Connector') ) {
             add_action('personal_options_update', 'XenForo2Connector::updateUserMetadata');
             add_action('edit_user_profile_update', 'XenForo2Connector::updateUserMetadata');
             add_action('transition_post_status', 'XenForo2Connector::postStatusUpdated', 10, 3);
-            add_action('the_posts', 'XenForo2Connector::queryPosts');
+            add_action('loop_end', 'XenForo2Connector::queryPosts');
 //			add_action('wp_enqueue_scripts', 'XenForo2Connector::registerScripts');
 		}
 
@@ -42,12 +42,11 @@ if ( !class_exists('XenForo2Connector') ) {
             return self::$instance;
 		}
 
-		public static function queryPosts( array $posts ) {
+		public static function queryPosts( WP_Query $query ) {
 		    if ( self::isConfigured() && !is_admin() ) {
+		        $posts = $query->get_posts();
 			    self::getViewer()->getThreadsInPage( $posts );
             }
-
-            return $posts;
 		}
 
 		public static function isConfigured(): bool {
