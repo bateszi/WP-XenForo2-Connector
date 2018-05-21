@@ -50,7 +50,7 @@ class XenForo2Viewer {
 		return $this;
 	}
 
-	private function getForumThreads() {
+	private function getForumThreads(): bool {
 		$threadIds = [];
 
 		foreach ( $this->posts as $post ) {
@@ -71,6 +71,10 @@ class XenForo2Viewer {
 			$url = sprintf('%s/index.php?api/threads/%s', $this->forumUrl, implode(',', $threadIds));
 			$response = wp_remote_get( $url );
 
+			if ( $response instanceof WP_Error ) {
+				return false;
+			}
+
 			if ($response["response"]["code"] >= 200 && $response["response"]["code"] <= 299) {
 				$body = @json_decode( wp_remote_retrieve_body( $response ), true );
 
@@ -80,6 +84,8 @@ class XenForo2Viewer {
 				}
 			}
 		}
+
+		return true;
 	}
 
 	/**
@@ -103,11 +109,13 @@ class XenForo2Viewer {
 		}
 
 		$this->setPosts( [$post] );
-		$this->getForumThreads();
+		$reqForumThreads = $this->getForumThreads();
 
-		if ( isset( $this->postsThreads[ $post->ID ] ) ) {
-			$threadId = $this->postsThreads[ $post->ID ];
-			return true;
+		if ( $reqForumThreads ) {
+			if ( isset( $this->postsThreads[ $post->ID ] ) ) {
+				$threadId = $this->postsThreads[ $post->ID ];
+				return true;
+			}
 		}
 
 		return false;
