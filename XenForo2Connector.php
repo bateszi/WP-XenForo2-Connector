@@ -316,6 +316,10 @@ if ( !class_exists('XenForo2Connector') ) {
             $body = '';
 
             $parseResponse = function ( $response ) use ( $body ): string {
+                if ( $response instanceof WP_Error ) {
+                    return $body;
+                }
+
 	            if ($response["response"]["code"] >= 200 && $response["response"]["code"] <= 299) {
 		            $body = wp_remote_retrieve_body( $response );
 	            }
