@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "es5",
+//    "inlineSourceMap": true,
+//    "inlineSources": true,
+    "sourceMap": false,
+    "outFile": "../js/xenforo2_connect.js",
+    "alwaysStrict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "vendor"
+  ]
+}

@@ -3,7 +3,7 @@ if ( !class_exists('XenForo2Connector') ) {
 
 	class XenForo2Connector {
 
-	    const VERSION = '0.1';
+	    const VERSION = '0.2';
 
 		const XF_2_WP_THREAD_ID = 'xf2wp_thread_id';
 
@@ -17,11 +17,6 @@ if ( !class_exists('XenForo2Connector') ) {
 
 		const XF_2_WP_API_PASSWORD = 'xf2wp_api_password';
 
-		/**
-		 * @var XenForo2Viewer
-		 */
-		private static $instance;
-
 		public static function init() {
 			add_action('admin_init', 'XenForo2Connector::settingsInit');
 
@@ -30,23 +25,7 @@ if ( !class_exists('XenForo2Connector') ) {
             add_action('personal_options_update', 'XenForo2Connector::updateUserMetadata');
             add_action('edit_user_profile_update', 'XenForo2Connector::updateUserMetadata');
             add_action('transition_post_status', 'XenForo2Connector::postStatusUpdated', 10, 3);
-            add_action('loop_start', 'XenForo2Connector::queryPosts');
-//			add_action('wp_enqueue_scripts', 'XenForo2Connector::registerScripts');
-		}
-
-		public static function getViewer() {
-            if ( !isset( self::$instance ) ) {
-                self::$instance = new XenForo2Viewer();
-            }
-
-            return self::$instance;
-		}
-
-		public static function queryPosts( WP_Query $query ) {
-		    if ( self::isConfigured() && !is_admin() ) {
-		        $posts = $query->get_posts();
-			    self::getViewer()->getThreadsInPage( $posts );
-            }
+			add_action('wp_enqueue_scripts', 'XenForo2Connector::registerScripts');
 		}
 
 		public static function isConfigured(): bool {
@@ -55,7 +34,16 @@ if ( !class_exists('XenForo2Connector') ) {
 
 		public static function registerScripts() {
 			$urlToJs = plugins_url( 'xenforo2_connect/js/xenforo2_connect.js' );
-            wp_enqueue_script('xf2wp_js', $urlToJs, [], self::VERSION, true);
+			$urlToCss = plugins_url( 'xenforo2_connect/css/xenforo2_connect.css' );
+
+            wp_enqueue_script( 'xf2wp_js', $urlToJs, [], self::VERSION, true );
+            wp_enqueue_style( 'xf2wp_css', $urlToCss );
+
+            wp_add_inline_script(
+                'xf2wp_js',
+                sprintf('XF2Connector.load("%s")', get_option( self::XF_2_WP_FORUM_BASE_URL ))
+//                sprintf('XF2Connector.load("%s")', 'http://localhost:8080')
+            );
 		}
 
 		public static function getPostExcerpt( WP_Post $publishedPost ): string {
@@ -351,6 +339,16 @@ if ( !class_exists('XenForo2Connector') ) {
             }
 
             return json_decode( $body, true );
+        }
+
+		public static function getPostThreadId( WP_Post $post ) {
+		    $threadId = get_post_meta( $post->ID, self::XF_2_WP_THREAD_ID, true );
+
+		    if ( !empty($threadId) ) {
+                return (int)$threadId;
+            }
+
+            return false;
         }
 
 	}

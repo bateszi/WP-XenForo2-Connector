@@ -1,0 +1,7 @@
+aukn-thread-replies {
+    display: none;
+}
+
+aukn-thread-replies.loaded {
+    display: inline;
+}
