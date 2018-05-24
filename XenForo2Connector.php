@@ -341,7 +341,12 @@ if ( !class_exists('XenForo2Connector') ) {
             return json_decode( $body, true );
         }
 
-		public static function getPostThreadId( WP_Post $post ) {
+		/**
+		 * @param WP_Post|stdClass $post
+		 *
+		 * @return bool|int
+		 */
+		public static function getPostThreadId( $post ) {
 		    $threadId = get_post_meta( $post->ID, self::XF_2_WP_THREAD_ID, true );
 
 		    if ( !empty($threadId) ) {
