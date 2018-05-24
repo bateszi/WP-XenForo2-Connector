@@ -23,8 +23,19 @@ var XF2Connector = /** @class */ (function () {
             while (this.replyCountElms[i]) {
                 var replyCountElm = this.replyCountElms[i];
                 var threadId = parseInt(replyCountElm.getAttribute('data-thread-id'));
-                this.threadIds.push(threadId);
-                this.xfThreadIdToElmMap[threadId] = replyCountElm;
+                var threadIdIndexed = false;
+                for (var _i = 0, _a = this.threadIds; _i < _a.length; _i++) {
+                    var cachedThreadId = _a[_i];
+                    if (threadId === cachedThreadId) {
+                        threadIdIndexed = true;
+                        break;
+                    }
+                }
+                if (!threadIdIndexed) {
+                    this.threadIds.push(threadId);
+                    this.xfThreadIdToElmMap[threadId] = [];
+                }
+                this.xfThreadIdToElmMap[threadId].push(replyCountElm);
                 i++;
             }
         }
@@ -50,20 +61,24 @@ var XF2Connector = /** @class */ (function () {
             xhr_1.send();
         }
     };
-    XF2Connector.prototype.displayThreads = function (beforeCommentsText) {
+    XF2Connector.prototype.displayThreads = function () {
         var _this = this;
-        if (beforeCommentsText === void 0) { beforeCommentsText = '&bull; '; }
         Object.keys(this.xfThreads).forEach(function (threadId) {
-            var model = _this.xfThreads[parseInt(threadId)], threadElm = _this.xfThreadIdToElmMap[parseInt(threadId)], linkElm = document.createElement('a'), spanElm = document.createElement('span');
-            linkElm.href = model.url;
-            linkElm.target = '_blank';
-            linkElm.text = (model.replyCount === 1)
-                ? model.replyCount + ' comment'
-                : model.replyCount + ' comments';
-            spanElm.innerHTML = beforeCommentsText;
-            spanElm.appendChild(linkElm);
-            threadElm.appendChild(spanElm);
-            threadElm.className = 'loaded';
+            var model = _this.xfThreads[parseInt(threadId)];
+            for (var _i = 0, _a = _this.xfThreadIdToElmMap[parseInt(threadId)]; _i < _a.length; _i++) {
+                var threadElm = _a[_i];
+                var linkElm = document.createElement('a'), spanElm = document.createElement('span'), xfDefaultLinkLabel = '&bull; XF-COMMENT-TEXT', customLinkLabel = threadElm.getAttribute('data-link-label'), linkLabel = (customLinkLabel) ? customLinkLabel : xfDefaultLinkLabel;
+                linkElm.href = model.url;
+                linkElm.target = '_blank';
+                var commentsLabel = (model.replyCount === 1)
+                    ? model.replyCount + ' comment'
+                    : model.replyCount + ' comments';
+                linkLabel = linkLabel.replace('XF-COMMENT-TEXT', commentsLabel);
+                linkElm.innerHTML = linkLabel;
+                spanElm.appendChild(linkElm);
+                threadElm.appendChild(spanElm);
+                threadElm.className = 'loaded';
+            }
         });
     };
     XF2Connector.prototype.init = function () {

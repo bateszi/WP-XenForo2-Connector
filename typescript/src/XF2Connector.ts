@@ -25,8 +25,22 @@ class XF2Connector {
 			while ( this.replyCountElms[i] ) {
 				let replyCountElm = this.replyCountElms[i];
 				let threadId = parseInt( replyCountElm.getAttribute('data-thread-id') );
-				this.threadIds.push( threadId );
-				this.xfThreadIdToElmMap[ threadId ] = replyCountElm;
+				let threadIdIndexed = false;
+
+				for (let cachedThreadId of this.threadIds) {
+					if ( threadId === cachedThreadId ) {
+						threadIdIndexed = true;
+						break;
+					}
+				}
+
+				if ( !threadIdIndexed ) {
+					this.threadIds.push( threadId );
+					this.xfThreadIdToElmMap[ threadId ] = [];
+				}
+
+				this.xfThreadIdToElmMap[ threadId ].push( replyCountElm );
+
 				i++;
 			}
 		}
@@ -62,25 +76,31 @@ class XF2Connector {
 		}
 	}
 
-	private displayThreads( beforeCommentsText: string = '&bull; ' ): void {
+	private displayThreads(): void {
 		Object.keys(this.xfThreads).forEach(( threadId ) => {
-			let model = this.xfThreads[ parseInt(threadId) ],
-				threadElm = this.xfThreadIdToElmMap[ parseInt(threadId) ],
-				linkElm = document.createElement('a'),
-				spanElm = document.createElement('span');
+			let model = this.xfThreads[ parseInt(threadId) ];
 
-			linkElm.href = model.url;
-			linkElm.target = '_blank';
-			linkElm.text = ( model.replyCount === 1 )
-				? model.replyCount + ' comment'
-				: model.replyCount + ' comments';
+			for (let threadElm of this.xfThreadIdToElmMap[ parseInt(threadId) ]) {
+				let linkElm = document.createElement('a'),
+					spanElm = document.createElement('span'),
+					xfDefaultLinkLabel = '&bull; XF-COMMENT-TEXT',
+					customLinkLabel = threadElm.getAttribute('data-link-label'),
+					linkLabel = ( customLinkLabel ) ? customLinkLabel : xfDefaultLinkLabel;
 
-			spanElm.innerHTML = beforeCommentsText;
+				linkElm.href = model.url;
+				linkElm.target = '_blank';
 
-			spanElm.appendChild( linkElm );
-			threadElm.appendChild( spanElm );
+				let commentsLabel = (model.replyCount === 1)
+					? model.replyCount + ' comment'
+					: model.replyCount + ' comments';
 
-			threadElm.className = 'loaded';
+				linkLabel = linkLabel.replace( 'XF-COMMENT-TEXT', commentsLabel );
+				linkElm.innerHTML = linkLabel;
+
+				spanElm.appendChild(linkElm);
+				threadElm.appendChild(spanElm);
+				threadElm.className = 'loaded';
+			}
 		});
 	}
 

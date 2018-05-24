@@ -3,7 +3,7 @@
 Plugin name: XenForo 2 Connect
 Description: Connects WordPress to XenForo 2 REST API
 Author: Paul Bates
-Version: 0.2
+Version: 0.3
 Author URI: https://github.com/bateszi
  */
 

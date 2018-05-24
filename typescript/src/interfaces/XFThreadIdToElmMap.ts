@@ -1,3 +1,3 @@
 interface XFThreadIdToElmMap {
-	[propName: number]: Element
+	[propName: number]: Array<Element>
 }
